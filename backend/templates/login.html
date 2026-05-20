@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartNotes - 访问验证</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: linear-gradient(135deg, #7C3AED 0%, #8B5CF6 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 3rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+        h1 {
+            color: #0F172A;
+            margin-bottom: 0.5rem;
+            font-size: 1.75rem;
+        }
+        .icon {
+            width: 64px;
+            height: 64px;
+            background: #7C3AED20;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+        }
+        .icon svg {
+            width: 32px;
+            height: 32px;
+            color: #7C3AED;
+        }
+        p {
+            color: #64748B;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+        .code-display {
+            background: #F7F3FD;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            margin-bottom: 1.5rem;
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: #7C3AED;
+            word-break: break-all;
+        }
+        input[type="password"] {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid #E2E8F0;
+            border-radius: 0.75rem;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            transition: border-color 0.2s;
+        }
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #7C3AED;
+        }
+        button {
+            width: 100%;
+            padding: 0.875rem;
+            background: #7C3AED;
+            color: white;
+            border: none;
+            border-radius: 0.75rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #6D28D9;
+        }
+        .error {
+            color: #DC2626;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+        </div>
+        <h1>SmartNotes 访问验证</h1>
+        <p>请输入验证码访问系统</p>
+        <div class="code-display" id="codeDisplay">{{.AuthCode}}</div>
+        <form id="loginForm">
+            <input type="password" id="codeInput" placeholder="请输入验证码" autocomplete="off">
+            <button type="submit">验证</button>
+            <div class="error" id="errorMsg">验证码错误，请重新输入</div>
+        </form>
+    </div>
+
+    <script>
+        const form = document.getElementById('loginForm');
+        const input = document.getElementById('codeInput');
+        const error = document.getElementById('errorMsg');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const code = input.value;
+            
+            try {
+                const resp = await fetch('/auth/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+                
+                if (resp.ok) {
+                    window.location.href = '/';
+                } else {
+                    error.style.display = 'block';
+                    input.value = '';
+                }
+            } catch (err) {
+                error.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
