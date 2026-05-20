@@ -10,6 +10,14 @@
 - ✅ 访问验证码保护
 - ✅ 响应式设计
 
+## 界面预览
+
+### 笔记列表
+![笔记列表](docs/screenshot-notes-list.png)
+
+### 笔记详情
+![笔记详情](docs/screenshot-note-detail.png)
+
 ## 技术栈
 
 ### 后端
