@@ -11,7 +11,7 @@ function NoteEdit() {
   const [formData, setFormData] = useState({ module_id: '', title: '', content: '' })
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [aiProcessing, setAiProcessing] = useState(false)
   const fileInputRef = useRef(null)
 
@@ -51,8 +51,18 @@ function NoteEdit() {
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
+    await uploadImage(file)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
 
-    setUploading(true)
+  const uploadImage = async (file) => {
+    if (!file.type.startsWith('image/')) {
+      alert('请选择图片文件')
+      return
+    }
+    setUploadingImage(true)
     try {
       const res = await noteAPI.uploadImage(file)
       const imageUrl = res.data.url
@@ -64,12 +74,89 @@ function NoteEdit() {
     } catch (err) {
       alert('上传图片失败: ' + (err.response?.data?.error || err.message))
     } finally {
-      setUploading(false)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
+      setUploadingImage(false)
     }
   }
+
+  // Paste image handler - detect Ctrl+V with image (document level for better coverage)
+  useEffect(() => {
+    const handlePaste = async (e) => {
+      console.log('[SmartNotes] Paste event detected, types:', e.clipboardData?.types)
+      const items = e.clipboardData?.items
+      if (!items) {
+        console.log('[SmartNotes] No clipboard items')
+        return
+      }
+
+      for (const item of items) {
+        console.log('[SmartNotes] Item type:', item.type)
+        if (item.type.startsWith('image/')) {
+          e.preventDefault()
+          console.log('[SmartNotes] Image paste detected, uploading...')
+          const file = item.getAsFile()
+          if (file) {
+            await uploadImage(file)
+          }
+          return
+        }
+      }
+    }
+
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [])
+
+  // Drag and drop image handler - attach to the form field wrapper
+  useEffect(() => {
+    const wrapper = document.querySelector('[data-editor-wrapper]')
+    const textarea = document.querySelector('textarea')
+    if (!wrapper && !textarea) return
+
+    const target = wrapper || textarea
+
+    const handleDragOver = (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      console.log('[SmartNotes] Drag over detected')
+      target.classList.add('ring-2', 'ring-primary', 'border-primary')
+    }
+
+    const handleDragLeave = (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      target.classList.remove('ring-2', 'ring-primary', 'border-primary')
+    }
+
+    const handleDrop = async (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      console.log('[SmartNotes] Drop detected')
+      target.classList.remove('ring-2', 'ring-primary', 'border-primary')
+
+      const files = e.dataTransfer?.files
+      if (!files || files.length === 0) {
+        console.log('[SmartNotes] No files in drop')
+        return
+      }
+
+      for (const file of files) {
+        console.log('[SmartNotes] Dropped file:', file.type, file.name)
+        if (file.type.startsWith('image/')) {
+          await uploadImage(file)
+        }
+      }
+    }
+
+    target.addEventListener('dragover', handleDragOver)
+    target.addEventListener('dragleave', handleDragLeave)
+    target.addEventListener('drop', handleDrop)
+
+    return () => {
+      target.removeEventListener('dragover', handleDragOver)
+      target.removeEventListener('dragleave', handleDragLeave)
+      target.removeEventListener('drop', handleDrop)
+    }
+  }, [])
 
   const handleAiFormat = async () => {
     if (!formData.content.trim()) {
@@ -165,11 +252,11 @@ function NoteEdit() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
+                  disabled={uploadingImage}
                   className="flex items-center gap-2 px-3 py-1.5 bg-muted text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm disabled:opacity-50"
                 >
                   <Image className="w-4 h-4" />
-                  {uploading ? '上传中...' : '插入图片'}
+                  {uploadingImage ? '上传中...' : '插入图片'}
                 </button>
               </div>
               <input
@@ -180,13 +267,24 @@ function NoteEdit() {
                 className="hidden"
               />
             </div>
-            <textarea
+            <div data-editor-wrapper className="relative">
+              <textarea
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none font-mono text-sm"
+              className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none font-mono text-sm transition-all"
               rows="20"
-              placeholder="使用 Markdown 格式书写笔记内容，支持插入图片和AI智能整理..."
+              placeholder="使用 Markdown 格式书写笔记内容，支持：
+• Ctrl+V 粘贴图片上传
+• 拖拽图片到此处上传
+• 点击插入图片按钮选择文件..."
             />
+            {uploadingImage && (
+              <div className="mt-2 text-sm text-primary flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                图片上传中...
+              </div>
+            )}
+            </div>
           </div>
 
           <div className="flex gap-4 pt-4">

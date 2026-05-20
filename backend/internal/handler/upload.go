@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"smartnotes/internal/model"
 	"smartnotes/pkg/ai"
@@ -79,9 +80,15 @@ func UploadImage(c *gin.Context) {
 	uploadPath := "/var/www/smartnotes/uploads"
 	fullPath := filepath.Join(uploadPath, filename)
 
+	// Ensure upload directory exists
+	if err := os.MkdirAll(uploadPath, 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
+		return
+	}
+
 	// Save file
 	if err := c.SaveUploadedFile(file, fullPath); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file: " + err.Error()})
 		return
 	}
 
