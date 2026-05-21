@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate, useSearchParams } from 'react-router-dom'
-import { BookOpen, Layers, FileText, Home } from 'lucide-react'
+import { BookOpen, Layers, FileText, Home, Menu, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { moduleAPI } from '../api'
 
@@ -7,6 +7,7 @@ function Layout() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [modules, setModules] = useState([])
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // Get module from URL or localStorage (persisted selection)
   const currentModule = searchParams.get('module_id') || localStorage.getItem('selectedModule') || ''
@@ -23,6 +24,11 @@ function Layout() {
     }
   }, [searchParams])
 
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [navigate])
+
   const handleModuleChange = (moduleId) => {
     // Persist selection in localStorage
     if (moduleId) {
@@ -32,59 +38,50 @@ function Layout() {
       localStorage.removeItem('selectedModule')
       navigate('/notes')
     }
+    setMobileMenuOpen(false)
   }
+
+  const navItems = [
+    { to: "/", icon: Home, label: "首页" },
+    { to: "/modules", icon: Layers, label: "模块" },
+    { to: "/notes", icon: FileText, label: "笔记" },
+  ]
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Header - Mobile responsive */}
       <header className="bg-white border-b border-border sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+          {/* Logo */}
           <div 
-            className="flex items-center gap-2 cursor-pointer" 
+            className="flex items-center gap-2 cursor-pointer min-w-0"
             onClick={() => navigate('/')}
           >
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
               <BookOpen className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-primary">SmartNotes</span>
+            <span className="text-xl font-bold text-primary truncate">SmartNotes</span>
           </div>
-          <div className="flex items-center gap-4">
+
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center gap-4">
             <nav className="flex items-center gap-1">
-              <NavLink
-                to="/"
-                className={({ isActive }) =>
-                  `flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                    isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
-                  }`
-                }
-              >
-                <Home className="w-4 h-4" />
-                <span>首页</span>
-              </NavLink>
-              <NavLink
-                to="/modules"
-                className={({ isActive }) =>
-                  `flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                    isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
-                  }`
-                }
-              >
-                <Layers className="w-4 h-4" />
-                <span>模块</span>
-              </NavLink>
-              <NavLink
-                to="/notes"
-                className={({ isActive }) =>
-                  `flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                    isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
-                  }`
-                }
-              >
-                <FileText className="w-4 h-4" />
-                <span>笔记</span>
-              </NavLink>
+              {navItems.map(({ to, icon: Icon, label }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) =>
+                    `flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                      isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
+                    }`
+                  }
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{label}</span>
+                </NavLink>
+              ))}
             </nav>
-            {/* Module filter dropdown - persists selection */}
+            {/* Module filter dropdown */}
             <select
               value={currentModule}
               onChange={(e) => handleModuleChange(e.target.value)}
@@ -96,7 +93,53 @@ function Layout() {
               ))}
             </select>
           </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 hover:bg-muted rounded-lg transition-colors"
+            aria-label="菜单"
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </div>
+
+        {/* Mobile Navigation Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-border bg-white">
+            <nav className="flex flex-col p-4 gap-2">
+              {navItems.map(({ to, icon: Icon, label }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                      isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
+                    }`
+                  }
+                >
+                  <Icon className="w-5 h-5" />
+                  <span className="text-base">{label}</span>
+                </NavLink>
+              ))}
+              {/* Mobile Module filter */}
+              <div className="mt-2 pt-2 border-t border-border">
+                <label className="block text-sm text-gray-500 mb-2 px-4">选择分类</label>
+                <select
+                  value={currentModule}
+                  onChange={(e) => handleModuleChange(e.target.value)}
+                  className="w-full px-4 py-3 border border-border rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                >
+                  <option value="">全部分类</option>
+                  {modules.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+            </nav>
+          </div>
+        )}
       </header>
 
       {/* Main Content */}
