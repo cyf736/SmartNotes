@@ -14,6 +14,7 @@ function NoteEdit() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [aiProcessing, setAiProcessing] = useState(false)
   const fileInputRef = useRef(null)
+  const textareaRef = useRef(null)
 
   useEffect(() => {
     moduleAPI.list().then((res) => setModules(res.data.data || []))
@@ -57,6 +58,28 @@ function NoteEdit() {
     }
   }
 
+  // Insert image markdown at the current textarea caret (defaults to end if none).
+  const insertContentAtCaret = (insertText) => {
+    const ta = textareaRef.current
+    // Take the caret offset from the live DOM; use it only as an index.
+    const caret = ta ? (ta.selectionStart ?? ta.value.length) : formData.content.length
+    // Compose from the latest state so rapid back-to-back inserts don't clobber.
+    setFormData((prev) => {
+      const before = prev.content.slice(0, caret)
+      const after = prev.content.slice(caret)
+      return { ...prev, content: before + insertText + after }
+    })
+    // After React re-renders, move the caret right after the inserted text.
+    requestAnimationFrame(() => {
+      const nt = textareaRef.current
+      if (nt) {
+        const pos = caret + insertText.length
+        nt.focus()
+        nt.setSelectionRange(pos, pos)
+      }
+    })
+  }
+
   const uploadImage = async (file) => {
     if (!file.type.startsWith('image/')) {
       alert('请选择图片文件')
@@ -66,11 +89,7 @@ function NoteEdit() {
     try {
       const res = await noteAPI.uploadImage(file)
       const imageUrl = res.data.url
-      const markdownImage = `\n![](${imageUrl})\n`
-      setFormData(prev => ({
-        ...prev,
-        content: prev.content + markdownImage
-      }))
+      insertContentAtCaret(`\n![](${imageUrl})\n`)
     } catch (err) {
       alert('上传图片失败: ' + (err.response?.data?.error || err.message))
     } finally {
@@ -78,7 +97,9 @@ function NoteEdit() {
     }
   }
 
-  // Paste image handler - detect Ctrl+V with image (document level for better coverage)
+  // Paste image handler - detect Ctrl+V with image.
+  // Only fires when the note editor textarea is focused, so pasting an image
+  // elsewhere can never inject into / create a note by accident.
   useEffect(() => {
     const handlePaste = async (e) => {
       console.log('[SmartNotes] Paste event detected, types:', e.clipboardData?.types)
@@ -88,16 +109,26 @@ function NoteEdit() {
         return
       }
 
+      const textarea = textareaRef.current
+      const editorFocused = !!textarea && document.activeElement === textarea
+      const hasImage = Array.from(items).some((item) => item.type.startsWith('image/'))
+
+      // Ignore image pasted anywhere outside the editor textarea.
+      if (!editorFocused) return
+
+      // Only intercept image content; let plain text paste behave normally
+      // (keeps the caret where the browser would put it).
+      if (!hasImage) return
+
+      e.preventDefault()
+      console.log('[SmartNotes] Image paste detected, uploading...')
       for (const item of items) {
-        console.log('[SmartNotes] Item type:', item.type)
         if (item.type.startsWith('image/')) {
-          e.preventDefault()
-          console.log('[SmartNotes] Image paste detected, uploading...')
           const file = item.getAsFile()
           if (file) {
             await uploadImage(file)
           }
-          return
+          break
         }
       }
     }
@@ -175,12 +206,15 @@ function NoteEdit() {
         title: formData.title || '未命名笔记',
         content: formData.content
       })
-      // Update form with AI-processed content
+      // Update form with AI-processed content (still an unsaved draft here;
+      // pressing 保存 will persist it into the current note without creating a
+      // duplicate, because the AI endpoint no longer inserts a note row).
       setFormData(prev => ({
         ...prev,
-        content: res.data.data.content
+        content: res.data.data.content,
+        title: prev.title || res.data.data.title || '未命名笔记'
       }))
-      alert('AI整理完成！')
+      alert('AI整理完成！点击“保存笔记”写入当前笔记即可。')
     } catch (err) {
       alert('AI整理失败: ' + (err.response?.data?.error || err.message))
     } finally {
@@ -269,6 +303,7 @@ function NoteEdit() {
             </div>
             <div data-editor-wrapper className="relative">
               <textarea
+              ref={textareaRef}
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}
               className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none font-mono text-sm transition-all"

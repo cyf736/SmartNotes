@@ -48,8 +48,11 @@ func UploadNote(aiClient *ai.Client) gin.HandlerFunc {
 			OriginalContent: req.Content,
 		}
 
-		model.GetDB().Create(&note)
-		c.JSON(http.StatusCreated, gin.H{"data": note})
+		// Do NOT create a new note here. AI整理 (“/notes/upload”) is only meant to
+		// reformat the current draft: it must not insert a note row on its own.
+		// Otherwise every paste + AI整理 / save flow would spawn an unwanted duplicate
+		// “new note”. Persistence is owned by the editor’s single 保存 (create/update).
+		c.JSON(http.StatusOK, gin.H{"data": note})
 	}
 }
 
