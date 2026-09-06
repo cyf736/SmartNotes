@@ -145,7 +145,7 @@ func main() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
-	db.AutoMigrate(&model.Module{}, &model.Note{})
+	db.AutoMigrate(&model.Module{}, &model.Note{}, &model.Tag{}, &model.Settings{})
 	model.InitDB(db)
 
 	aiClient := ai.NewClient(
@@ -153,6 +153,11 @@ func main() {
 		viper.GetString("BASE_URL"),
 		viper.GetString("MODEL"),
 	)
+
+	// Seed the singleton AI settings row (id=1) from the current model + the
+	// historical hardcoded AI-整理 prompt, if a row isn't there yet. From here
+	// on the stored values (editable from 设置) are authoritative.
+	model.SeedSettings(viper.GetString("MODEL"), ai.DefaultAIPrompt) 
 
 	authCode = viper.GetString("AUTH_CODE")
 	if authCode == "" {
@@ -231,6 +236,11 @@ func main() {
 		api.PUT("/modules/:id", model.UpdateModule)
 		api.DELETE("/modules/:id", model.DeleteModule)
 
+		api.GET("/tags", model.ListTags)
+		api.POST("/tags", model.CreateTag)
+		api.PUT("/tags/:id", model.UpdateTag)
+		api.DELETE("/tags/:id", model.DeleteTag)
+
 		api.GET("/notes", model.ListNotes)
 		api.GET("/notes/:id", model.GetNote)
 		api.POST("/notes", model.CreateNote)
@@ -238,6 +248,9 @@ func main() {
 		api.DELETE("/notes/:id", model.DeleteNote)
 		api.POST("/notes/upload", handler.UploadNote(aiClient))
 		api.POST("/notes/upload-image", handler.UploadImage)
+
+		api.GET("/settings", model.GetSettings)
+		api.PUT("/settings", model.UpdateSettings)
 	}
 
 	port := viper.GetString("PORT")

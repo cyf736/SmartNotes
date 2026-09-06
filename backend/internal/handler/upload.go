@@ -28,7 +28,10 @@ func UploadNote(aiClient *ai.Client) gin.HandlerFunc {
 			return
 		}
 
-		processedContent, err := aiClient.ProcessNote(req.Content)
+		// Read the current AI settings so every request honors the latest
+		// prompt/model chosen in 设置 (no restart needed).
+		settings := model.GetSettingsRow()
+		processedContent, err := aiClient.ProcessNote(req.Content, settings.AIPrompt, settings.AIModel)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process note: " + err.Error()})
 			return

@@ -45,3 +45,6 @@ uploads/
 # Misc
 *.bak
 *.tmp
+
+# Go build binary
+backend/smartnotes-server

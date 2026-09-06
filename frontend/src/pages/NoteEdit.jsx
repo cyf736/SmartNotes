@@ -1,40 +1,128 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Image, Sparkles } from 'lucide-react'
-import { noteAPI, moduleAPI } from '../api'
+import { ArrowLeft, Save, Image, Sparkles, X, ChevronDown, Tag as TagIcon } from 'lucide-react'
+import { noteAPI, moduleAPI, tagAPI } from '../api'
+
+const TAG_COLORS = ['#7C3AED', '#059669', '#2563EB', '#DC2626', '#EA580C', '#0891B2', '#4F46E5', '#B45309']
+const tagColor = (name) => {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = (hash + name.charCodeAt(i)) % 997
+  return TAG_COLORS[hash % TAG_COLORS.length]
+}
 
 function NoteEdit() {
   const { id } = useParams()
   const navigate = useNavigate()
   const isEdit = Boolean(id)
   const [modules, setModules] = useState([])
-  const [formData, setFormData] = useState({ module_id: '', title: '', content: '' })
+  // existing tags available to pick from (dropdown)
+  const [allTags, setAllTags] = useState([])
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [aiProcessing, setAiProcessing] = useState(false)
+  const [tagQuery, setTagQuery] = useState('')
+  const [tagsOpen, setTagsOpen] = useState(false)
+  const [tagCreateLoading, setTagCreateLoading] = useState(false)
+  const tagInputRef = useRef(null)
+  const tagBoxRef = useRef(null)
+  const [formData, setFormData] = useState({ module_id: '', title: '', content: '', tags: [] })
   const fileInputRef = useRef(null)
   const textareaRef = useRef(null)
 
   useEffect(() => {
     moduleAPI.list().then((res) => setModules(res.data.data || []))
+    tagAPI.list().then((res) => setAllTags(res.data.data || []))
     if (isEdit) {
       noteAPI.get(id).then((res) => {
         const note = res.data.data
         setFormData({
           module_id: note.module_id?.toString() || '',
           title: note.title || '',
-          content: note.content || ''
+          content: note.content || '',
+          tags: note.tags || []
         })
       }).finally(() => setLoading(false))
     }
   }, [id, isEdit])
 
+  // Close tag dropdown when clicking outside
+  useEffect(() => {
+    const onClick = (e) => {
+      if (tagBoxRef.current && !tagBoxRef.current.contains(e.target)) {
+        setTagsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [])
+
+  // --- tag helpers ---
+  const selectedNames = new Set(formData.tags.map((t) => t.name))
+  const normalizedQuery = tagQuery.trim()
+  const filteredTags = allTags
+    .filter((t) => !selectedNames.has(t.name))
+    .filter((t) => !normalizedQuery || t.name.toLowerCase().includes(normalizedQuery.toLowerCase()))
+    .slice(0, 20)
+  const canCreate = !!normalizedQuery &&
+    !selectedNames.has(normalizedQuery) &&
+    !allTags.some((t) => t.name.toLowerCase() === normalizedQuery.toLowerCase())
+
+  const addTag = (tag) => {
+    if (!tag || !tag.name) return
+    if (selectedNames.has(tag.name)) return
+    setFormData((prev) => ({ ...prev, tags: [...prev.tags, { id: tag.id, name: tag.name }] }))
+    setTagQuery('')
+  }
+  const removeTag = (name) => {
+    setFormData((prev) => ({ ...prev, tags: prev.tags.filter((t) => t.name !== name) }))
+  }
+  const handleTagKey = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      // If dropdown shows an exact/available existing match, pick it; otherwise create new
+      const match = filteredTags.find((t) => !normalizedQuery || t.name.toLowerCase() === normalizedQuery.toLowerCase())
+      if (match) {
+        addTag(match)
+      } else if (canCreate) {
+        createNewTag(normalizedQuery)
+      }
+    } else if (e.key === 'Backspace' && !normalizedQuery && formData.tags.length) {
+      removeTag(formData.tags[formData.tags.length - 1].name)
+    }
+  }
+  const createNewTag = async (name) => {
+    const trimmed = name.trim()
+    if (!trimmed || selectedNames.has(trimmed)) return
+    setTagCreateLoading(true)
+    try {
+      // Create (server returns existing if already present) then add locally
+      const res = await tagAPI.create(trimmed)
+      const created = res.data.data
+      addTag(created)
+      setAllTags((prev) => {
+        if (prev.some((t) => t.id === created.id)) return prev
+        return [...prev, created].sort((a, b) => a.name.localeCompare(b.name))
+      })
+      setTagQuery('')
+      setTagsOpen(false)
+    } catch (err) {
+      alert('创建标签失败: ' + (err.response?.data?.error || err.message))
+    } finally {
+      setTagCreateLoading(false)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
     try {
-      const data = { ...formData, module_id: formData.module_id ? parseInt(formData.module_id) : 1 }
+      const data = {
+        ...formData,
+        module_id: formData.module_id ? parseInt(formData.module_id) : 1,
+        // send tags as plain names; backend resolves/creates them
+        tags: (formData.tags || []).map((t) => t.name)
+      }
       let noteId = id
       if (isEdit) {
         await noteAPI.update(id, data)
@@ -256,18 +344,100 @@ function NoteEdit() {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">所属模块</label>
-            <select
-              value={formData.module_id}
-              onChange={(e) => setFormData({ ...formData, module_id: e.target.value })}
-              className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-            >
-              <option value="">选择模块（可选）</option>
-              {modules.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 所属分类（模块） */}
+            <div className="min-w-0">
+              <label className="block text-sm font-medium mb-2">所属分类</label>
+              <select
+                value={formData.module_id}
+                onChange={(e) => setFormData({ ...formData, module_id: e.target.value })}
+                className="w-full px-3 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+              >
+                <option value="">选择分类（可选）</option>
+                {modules.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 标签（多选，可下拉选择或手动添加新标签） */}
+            <div className="min-w-0" ref={tagBoxRef}>
+              <label className="block text-sm font-medium mb-2">标签（可多选）</label>
+              <div
+                className="relative border border-border rounded-lg focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent bg-white"
+              >
+                <div
+                  className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 cursor-text min-h-[46px]"
+                  onClick={() => { setTagsOpen(true); tagInputRef.current?.focus() }}
+                >
+                  {formData.tags.map((t) => (
+                    <span
+                      key={t.name}
+                      className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-xs text-white"
+                      style={{ backgroundColor: tagColor(t.name) }}
+                    >
+                      {t.name}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); removeTag(t.name) }}
+                        className="hover:bg-white/20 rounded-full p-0.5"
+                        aria-label={`移除 ${t.name}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    ref={tagInputRef}
+                    type="text"
+                    value={tagQuery}
+                    onChange={(e) => { setTagQuery(e.target.value); setTagsOpen(true) }}
+                    onFocus={() => setTagsOpen(true)}
+                    onKeyDown={handleTagKey}
+                    className="flex-1 min-w-[110px] outline-none text-sm py-1"
+                    placeholder={formData.tags.length ? '＋ 添加标签' : '选择或输入后回车添加…'}
+                  />
+                </div>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+
+                {/* dropdown */}
+                {tagsOpen && (
+                  <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-border rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                    {tagCreateLoading ? (
+                      <div className="px-3 py-2 text-sm text-gray-400">创建中…</div>
+                    ) : (
+                      <>
+                        {canCreate && (
+                          <button
+                            type="button"
+                            onClick={() => createNewTag(normalizedQuery)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                          >
+                            <TagIcon className="w-4 h-4 text-primary" />
+                            <span>创建标签 <b>“{normalizedQuery}”</b></span>
+                          </button>
+                        )}
+                        {filteredTags.length === 0 && !canCreate ? (
+                          <div className="px-3 py-2 text-sm text-gray-400">暂无其他标签</div>
+                        ) : (
+                          filteredTags.map((t) => (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => { addTag(t); tagInputRef.current?.focus() }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                            >
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tagColor(t.name) }} />
+                              <span className="truncate">{t.name}</span>
+                            </button>
+                          ))
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div>

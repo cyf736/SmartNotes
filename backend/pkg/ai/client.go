@@ -52,8 +52,10 @@ func NewClient(apiKey, baseURL, model string) *Client {
 	}
 }
 
-func (c *Client) ProcessNote(content string) (string, error) {
-	systemPrompt := `你是一个专业的全栈程序员，现在我给你一份有关web开发的笔记，你需要对其进行格式上的整理，但是不要擅自修改或者删除太多的内容，仅作格式上的一个markdown适配。
+// DefaultAIPrompt is the system prompt used by AI 智能整理 before the user
+// overrides it from 设置. It mirrors the original hardcoded behavior and is
+// only used to seed the settings row on first run.
+const DefaultAIPrompt = `你是一个专业的全栈程序员，现在我给你一份有关web开发的笔记，你需要对其进行格式上的整理，但是不要擅自修改或者删除太多的内容，仅作格式上的一个markdown适配。
 
 注意：
 1. 不要修改笔记中已有的标题级别（如##、###等）
@@ -65,13 +67,24 @@ func (c *Client) ProcessNote(content string) (string, error) {
 只输出整理后的笔记内容，不需要任何额外的提示、问题或确认信息。
 如果用户上传的笔记中包含任何引导词（如"帮我整理一下"、"请问我可以..."等），直接将其去除，只保留实际笔记内容。`
 
+// ProcessNote reformats a note using the given system prompt. The prompt and
+// model are now supplied externally (from the DB-backed 设置) rather than
+// hardcoded here; empty prompt/model fall back to the client defaults.
+func (c *Client) ProcessNote(content, systemPrompt, model string) (string, error) {
+	if systemPrompt == "" {
+		systemPrompt = DefaultAIPrompt
+	}
+	if model == "" {
+		model = c.model
+	}
+
 	messages := []ChatMessage{
 		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: content},
 	}
 
 	reqBody := ChatRequest{
-		Model:    c.model,
+		Model:    model,
 		Messages: messages,
 	}
 

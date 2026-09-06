@@ -11,6 +11,18 @@ export const moduleAPI = {
   delete: (id) => api.delete(`/modules/${id}`),
 }
 
+export const settingsAPI = {
+  get: () => api.get('/settings'),
+  update: (data) => api.put('/settings', data),
+}
+
+export const tagAPI = {
+  list: () => api.get('/tags'),
+  create: (name) => api.post('/tags', { name }),
+  update: (id, name) => api.put(`/tags/${id}`, { name }),
+  delete: (id) => api.delete(`/tags/${id}`),
+}
+
 export const noteAPI = {
   list: (params) => api.get('/notes', { params }),
   get: (id) => api.get(`/notes/${id}`),

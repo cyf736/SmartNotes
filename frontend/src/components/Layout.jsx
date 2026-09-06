@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate, useSearchParams } from 'react-router-dom'
-import { BookOpen, Layers, FileText, Home, Menu, X } from 'lucide-react'
+import { BookOpen, Layers, FileText, Home, Menu, X, Settings as SettingsIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { moduleAPI } from '../api'
 
@@ -41,11 +41,60 @@ function Layout() {
     setMobileMenuOpen(false)
   }
 
+  // Build the “笔记” nav target by restoring the last remembered browsing
+  // position (module + tag + search + page), so leaving a detail view and
+  // clicking “笔记” again returns to where you were rather than page 1.
+  const notesHref = () => {
+    let pos = null
+    try { pos = JSON.parse(localStorage.getItem('notesBrowsePos') || 'null') } catch (e) { pos = null }
+    const qp = new URLSearchParams()
+    if (pos && pos.module_id) qp.set('module_id', pos.module_id)
+    if (pos && pos.tag_id) qp.set('tag_id', pos.tag_id)
+    if (pos && pos.search) qp.set('search', pos.search)
+    if (pos && pos.page && pos.page > 1) qp.set('page', pos.page)
+    const qs = qp.toString()
+    return '/notes' + (qs ? '?' + qs : '')
+  }
+
+  const handleNotesNav = (e) => {
+    e.preventDefault()
+    const target = notesHref()
+    // Avoid a redundant reload when already on the exact same list view.
+    if (window.location.pathname + window.location.search !== target) {
+      navigate(target)
+    }
+    setMobileMenuOpen(false)
+  }
+
   const navItems = [
     { to: "/", icon: Home, label: "首页" },
-    { to: "/modules", icon: Layers, label: "模块" },
-    { to: "/notes", icon: FileText, label: "笔记" },
+    { to: "/modules", icon: Layers, label: "分类" },
+    { to: "/notes", icon: FileText, label: "笔记", restorePos: true },
+    { to: "/settings", icon: SettingsIcon, label: "设置" },
   ]
+
+  // Shared renderer used by both desktop & mobile nav lists. `mobile` switches to
+  // the larger tap-friendly layout and closes the drawer on navigation.
+  const renderNavItem = ({ to, icon: Icon, label, restorePos, mobile }) => {
+    const handleClick = restorePos ? handleNotesNav : (e) => { if (mobile) setMobileMenuOpen(false) }
+    return (
+      <NavLink
+        key={to}
+        to={restorePos ? notesHref() : to}
+        onClick={handleClick}
+        className={({ isActive }) =>
+          `flex items-center transition-colors ${
+            mobile
+              ? `gap-3 px-4 py-3 rounded-lg ${isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'} text-base`
+              : `gap-2 px-4 py-2 rounded-lg ${isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`
+          }`
+        }
+      >
+        <Icon className={mobile ? 'w-5 h-5' : 'w-4 h-4'} />
+        <span className={mobile ? 'text-base' : ''}>{label}</span>
+      </NavLink>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -66,20 +115,7 @@ function Layout() {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-4">
             <nav className="flex items-center gap-1">
-              {navItems.map(({ to, icon: Icon, label }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  className={({ isActive }) =>
-                    `flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                      isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
-                    }`
-                  }
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{label}</span>
-                </NavLink>
-              ))}
+              {navItems.map((item) => renderNavItem(item))}
             </nav>
             {/* Module filter dropdown */}
             <select
@@ -108,21 +144,7 @@ function Layout() {
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-border bg-white">
             <nav className="flex flex-col p-4 gap-2">
-              {navItems.map(({ to, icon: Icon, label }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                      isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
-                    }`
-                  }
-                >
-                  <Icon className="w-5 h-5" />
-                  <span className="text-base">{label}</span>
-                </NavLink>
-              ))}
+              {navItems.map((item) => renderNavItem({ ...item, mobile: true }))}
               {/* Mobile Module filter */}
               <div className="mt-2 pt-2 border-t border-border">
                 <label className="block text-sm text-gray-500 mb-2 px-4">选择分类</label>

@@ -42,21 +42,21 @@ function Home() {
         </button>
       </div>
 
-      {/* Modules Section */}
+        {/* Modules / 分类 Section */}
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">学习模块</h2>
+          <h2 className="text-xl font-semibold">分类</h2>
           <button
             onClick={() => navigate('/modules')}
             className="text-primary hover:underline flex items-center gap-1"
           >
-            管理模块 <ChevronRight className="w-4 h-4" />
+            管理分类 <ChevronRight className="w-4 h-4" />
           </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {modules.length === 0 ? (
             <div className="col-span-full text-center py-8 text-gray-500">
-              暂无模块，<button onClick={() => navigate('/modules')} className="text-primary hover:underline">去创建</button>
+              暂无分类，<button onClick={() => navigate('/modules')} className="text-primary hover:underline">去创建</button>
             </div>
           ) : (
             modules.slice(0, 3).map((module) => (

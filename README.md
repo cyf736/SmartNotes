@@ -6,7 +6,7 @@
 
 - ✅ 多学习模块管理（增删改查、颜色分类）
 - ✅ 笔记管理（支持 Markdown、搜索、分页）
-- ✅ AI 智能整理上传（阿里云百炼 API）
+- ✅ AI 智能整理上传（DeepSeek deepseek-v4-flash-vision-exp API）
 - ✅ 访问验证码保护
 - ✅ 响应式设计
 
@@ -24,7 +24,7 @@
 - Go 1.21+
 - Gin Web Framework
 - GORM (MySQL)
-- 阿里云百炼 API (DashScope)
+- DeepSeek API（deepseek-v4-flash-vision-exp，OpenAI 兼容格式）
 
 ### 前端
 - React 18 + Vite
@@ -94,10 +94,10 @@ cd backend
 # 创建环境配置
 cat > .env << EOF
 DSN=root:password@tcp(localhost:3306)/smartnotes?charset=utf8mb4&parseTime=True&loc=Local
-API_KEY=your-api-key-here
-BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-MODEL=qwen-plus
-PORT=6768
+API_KEY=your-deepseek-api-key
+BASE_URL=https://api.deepseek.com
+MODEL=deepseek-v4-flash-vision-exp
+PORT=5678
 AUTH_CODE=your-auth-code-here
 EOF
 
@@ -144,10 +144,10 @@ npm run build
 | 变量 | 说明 |
 |------|------|
 | DSN | MySQL 数据库连接字符串 |
-| API_KEY | 阿里云百炼 API Key |
+| API_KEY | DeepSeek API Key |
 | BASE_URL | API 基础地址 |
 | MODEL | 使用的 AI 模型 |
-| PORT | 服务端口（默认 6768） |
+| PORT | 服务端口（默认 5678） |
 | AUTH_CODE | 访问验证码 |
 
 ## 许可证
